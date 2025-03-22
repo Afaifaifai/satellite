@@ -32,3 +32,5 @@ while sc.SimulationTime < endTime
     disp(states(sat(1)))
     disp(1);
 end
+
+play(sc)
