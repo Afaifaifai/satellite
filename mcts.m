@@ -1,4 +1,4 @@
-function bestPath = mcts(graph, startNode, endNode, maxHops, iterations)
+function bestPath = mcts(graph, startNode, endNode, iterations)
     % mctsShortestLoss 使用蒙地卡羅樹搜尋來找出從 startNode 到 endNode 的最小 Loss 路徑，
     % 且路徑長度不超過 maxHops+1（包含起始與終點）。
     %
@@ -14,6 +14,7 @@ function bestPath = mcts(graph, startNode, endNode, maxHops, iterations)
     
     % 定義樹中節點的結構
     % 每個節點包含：state, path, cost, visits, totalCost, parent
+    maxHops = Inf;
     node.state = startNode;        % 當前節點
     node.path = startNode;         % 從起點到目前為止的節點路徑
     node.cost = 0;                 % 累積 Loss
