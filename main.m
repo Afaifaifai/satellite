@@ -5,8 +5,11 @@
     % coords = to_coords(sats, gs1, gs2, datetime(start_time));
 
     if ~sim_flag && isfile(probs_cache_file_path)
-        S      = load(probs_cache_file_path, 'probs');
-        probs = S.probs;
+        % S      = load(probs_cache_file_path, 'probs');
+        % probs = S.probs;
+        S      = load('coords.mat', 'coords');
+        coords = S.coords;
+        probs = to_probs(coords);
         fprintf("[INFO] Probabilities loaded from %s.\n", probs_cache_file_path);
 
     else
@@ -39,7 +42,16 @@
     probs(1,2) = Inf;
     probs(2,1) = Inf;
     probs(2,2) = 1;
+    % disp(probs);
+    for i = 3:10
+        neigh = find(~isinf(probs(i,:)));
+        disp(numel(neigh));
+    end
+    % disp(probs(3, :));
+    % disp(probs(3799,:));
     % disp(probs(:, 1));
+
+    % mcts2(probs, 1, 2, 10);
 
     % disp(s2s_is_avail(coords(3), coords(7)));
     % disp(g2s_is_avail(coords(2), coords(3)));
@@ -56,7 +68,6 @@
     % uav1 = groundStation(sc, uav_lat1, uav_lon1, 'Altitude', uav_alt1, 'Name', uav_name1);
     % uav2 = groundStation(sc, uav_lat2, uav_lon2, 'Altitude', uav_alt2, 'Name', uav_name2);
     % run('mcts2.m');
-    mcts2(probs, 1, 2, 10);
 
 % end
 
