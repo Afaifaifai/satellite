@@ -61,5 +61,5 @@ uav_name2 = 'UAV2 with BS2';
 
 
 probs_cache_file_path = 'probs.mat';
-sim_flag = true;
+sim_flag = false;
 save_flag = true;

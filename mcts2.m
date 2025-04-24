@@ -259,6 +259,7 @@ function bestPath = mcts2(logP, startNode, endNode, iterations)
             % 一般鄰居加權抽樣
             neigh = find(~isinf(logP(sim.state,:)));
             avail = setdiff(neigh, sim.path);
+            disp(numel(avail));
             if isempty(avail)
                 simLog = -Inf;
                 break;

@@ -4,7 +4,7 @@
     
     % coords = to_coords(sats, gs1, gs2, datetime(start_time));
 
-    if ~sim_flag && isfile(coords_cache_file_path)
+    if ~sim_flag && isfile(probs_cache_file_path)
         S      = load(probs_cache_file_path, 'probs');
         probs = S.probs;
         fprintf("[INFO] Probabilities loaded from %s.\n", probs_cache_file_path);
@@ -22,20 +22,27 @@
         epoch  = datetime(start_time);
         coords = to_coords(sats, gs1, gs2, epoch);
         probs = to_probs(coords);
+        % S      = load('coords.mat', 'coords');
+        % coords = S.coords;
+        % probs = to_probs(coords);
         fprintf("[INFO] Probabilities recomputed with to_probs().\n");
 
         if save_flag
-            save(probs_cache_file_path, 'coords');
+            save(probs_cache_file_path, 'probs');
             fprintf("[INFO] Probabilities saved to %s.\n", probs_cache_file_path);
         end
     end
 
     % display(coords);
 
-    
-    % disp(probs(2, :));
-    disp(s2s_is_avail(coords(3), coords(7)));
-    disp(g2s_is_avail(coords(2), coords(3)));
+    probs(1,1) = 1;
+    probs(1,2) = Inf;
+    probs(2,1) = Inf;
+    probs(2,2) = 1;
+    % disp(probs(:, 1));
+
+    % disp(s2s_is_avail(coords(3), coords(7)));
+    % disp(g2s_is_avail(coords(2), coords(3)));
     % for i = 1:numel(probs(1,:))
     %     if (probs(2, i) ~= Inf)
     %         % display(i);
