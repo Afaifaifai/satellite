@@ -1,7 +1,7 @@
 %% 常量
 mu = 3.986004418e14;                        % 地球引力參數 (m^3/s^2)
 earth_radius = 6378137;                     % 地球赤道半徑 (m)
-atm_height   = 700e3;                       % 大氣層高度 (m)
+atm_height   = 500e3;                       % 大氣層高度 (m)
 block_radius = earth_radius + atm_height;   % 地星到大氣層
 h = 550e3;                                  % 衛星高度 (m)
 semi_major_axis = earth_radius + h;         % 半長軸 (m) a
@@ -58,3 +58,8 @@ uav_alt1 = 1500;    % 高度 (m)
 uav_alt2 = 1500;    % 高度 (m)
 uav_name1 = 'UAV1 with BS1';
 uav_name2 = 'UAV2 with BS2';
+
+
+probs_cache_file_path = 'probs.mat';
+sim_flag = true;
+save_flag = true;
