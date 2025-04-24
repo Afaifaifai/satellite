@@ -34,7 +34,11 @@ function bestPath = mcts2(logP, startNode, endNode, iterations)
         currentIdx = rootIdx;
         while true
             curr = tree(currentIdx);
+            % disp(currentIdx);
             children = find([tree.parent]==currentIdx);
+            % if (numel(children) >= 1)
+            %     fprintf("  currIdx=%d, curr.state=%d, nc=%d %d\n", currentIdx, curr.state, numel(children), children(1));
+            % end
             if curr.state==endNode || isempty(children)
                 break;
             end
@@ -46,24 +50,26 @@ function bestPath = mcts2(logP, startNode, endNode, iterations)
                     uctVal = Inf;
                 else
                     avgLog = child.totalLog / child.visits;
-                    uctVal = avgLog + c * sqrt(log(Np)/child.visits);
+                    uctVal = avgLog + c * sqrt(log(Np + 1)/child.visits);
                 end
                 if uctVal > bestVal
                     bestVal    = uctVal;
                     currentIdx = idx;
                 end
             end
+            % disp(currentIdx);
         end
-        % disp(currentIdx);
+        disp('select');
         %% 2. Expansion
         curr = tree(currentIdx);
         if curr.state~=endNode
             neigh = find(~isinf(logP(curr.state,:)));
-            disp(numel(neigh));
+            
+            % disp(numel(neigh));
             avail = setdiff(neigh, curr.path);
-            disp(numel(avail));
+            % disp(numel(avail));
             if ~isempty(avail)
-                nextState = avail(randi(length(avail)));
+                nextState = avail(randi(numel(avail)));
                 newNode.state    = nextState;
                 newNode.path     = [curr.path, nextState];
                 newNode.visits   = 0;
@@ -82,12 +88,12 @@ function bestPath = mcts2(logP, startNode, endNode, iterations)
         %% 3. Simulation (roll-out)
         sim    = tree(newIdx);
         simLog = 0;
-        disp(sim.state);
+        % disp(sim.state);
 
         while sim.state~=endNode
             % 嘗試直接跳到終點
             if rand() < p_direct && ~isinf(logP(sim.state,endNode))
-                simLog = simLog + probP(endNode, sim.state);
+                simLog = simLog + logP(endNode, sim.state);
                 sim.state = endNode;
                 sim.path(end+1) = endNode;
                 break;
@@ -95,12 +101,12 @@ function bestPath = mcts2(logP, startNode, endNode, iterations)
             % 一般鄰居加權抽樣
             neigh = find(~isinf(logP(sim.state,:)));
             % neigh = find(~isinf(logP(curr.state,:)));
-            disp(numel(neigh));
+            % disp(numel(neigh));
             avail = setdiff(neigh, sim.path);
-            disp(numel(avail));
+            % disp(numel(avail));
             % disp(numel(avail));
             if isempty(avail)
-                simLog = -Inf;
+                simLog = -1e12;
                 break;
             end
             % 計算線性機率權重
@@ -136,6 +142,15 @@ function bestPath = mcts2(logP, startNode, endNode, iterations)
     % 顯示結果
     fprintf('Best path: ');
     disp(bestPath);
+
+    log_sum = 0;
+    front = 1;
+    for i = 2:numel(bestPath)
+        log_sum = log_sum + logP(front, bestPath(i));
+        front = bestPath(i);
+    end
+    disp(10^bestLog);
+    disp(logP(2,130));
     end
     
     

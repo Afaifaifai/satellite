@@ -38,20 +38,23 @@
 
     % display(coords);
 
-    probs(1,1) = 1;
+    probs(1,1) = Inf;
     probs(1,2) = Inf;
     probs(2,1) = Inf;
-    probs(2,2) = 1;
+    probs(2,2) = Inf;
     % disp(probs);
-    for i = 3:10
-        neigh = find(~isinf(probs(i,:)));
-        disp(numel(neigh));
-    end
+    % for i = 3:1584
+    %     neigh = find(~isinf(probs(i,:)));
+    %     disp(numel(neigh));
+    % end
+
+    % disp(coords(10,:));
+
     % disp(probs(3, :));
     % disp(probs(3799,:));
-    % disp(probs(:, 1));
+    % disp(probs(2, :));
 
-    % mcts2(probs, 1, 2, 10);
+    mcts2(probs, 1, 2, 10);
 
     % disp(s2s_is_avail(coords(3), coords(7)));
     % disp(g2s_is_avail(coords(2), coords(3)));
@@ -100,33 +103,37 @@ end
 
 
 function probs = to_probs(coords)
-    n_node = numel(coords);
+    n_node = numel(coords(:,1));
     probs = zeros(n_node, n_node);
 
     for idx = 3:n_node
-        if g2s_is_avail(coords(1), coords(idx))
+        if g2s_is_avail(coords(1,:), coords(idx,:))
             p = g2s_calculate_prob(coords(1), coords(idx));
-            probs(1, idx) = p;
-            probs(idx, 1) = p;
+            probs(1, idx) = log(p);
+            probs(idx, 1) = log(p);
         else
             probs(1, idx) = Inf;
             probs(idx, 1) = Inf;
         end
 
-        if g2s_is_avail(coords(2), coords(idx))
-            p = g2s_calculate_prob(coords(2), coords(idx));
-            probs(2, idx) = p;
-            probs(idx, 2) = p;
+        if g2s_is_avail(coords(2,:), coords(idx,:))
+            p = g2s_calculate_prob(coords(2,:), coords(idx,:));
+            probs(2, idx) = log(p);
+            probs(idx, 2) = log(p);
         else
             probs(2, idx) = Inf;
             probs(idx, 2) = Inf;
         end
 
         for jdx = 3:n_node
-            if s2s_is_avail(coords(idx), coords(jdx))
-                p = s2s_calculate_prob(coords(idx), coords(jdx));
-                probs(jdx, idx) = p;
-                probs(idx, jdx) = p;
+            if (idx == jdx)
+                probs(idx, jdx) = Inf;
+                continue;
+            end
+            if s2s_is_avail(coords(idx,:), coords(jdx,:))
+                p = s2s_calculate_prob(coords(idx,:), coords(jdx,:));
+                probs(jdx, idx) = log(p);
+                probs(idx, jdx) = log(p);
             else
                 probs(jdx, idx) = Inf;
                 probs(idx, jdx) = Inf;
@@ -170,11 +177,11 @@ function avail = s2s_is_avail(sat1_coord, sat2_coord)
 end
 
 function p = g2s_calculate_prob(gs_coord, sat_coord)
-    p = 1;
+    p = rand;
 end
 
 function p = s2s_calculate_prob(sat_coord1, sat_coord2)
-    p = 1;
+    p = rand;
 end
 
 % props = properties(sat(i));
