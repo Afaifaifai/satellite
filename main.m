@@ -54,7 +54,7 @@
     % disp(probs(3799,:));
     % disp(probs(2, :));
 
-    mcts2(probs, 1, 2, 10);
+    mcts2(probs, 1, 2, 10000);
 
     % disp(s2s_is_avail(coords(3), coords(7)));
     % disp(g2s_is_avail(coords(2), coords(3)));
@@ -109,8 +109,8 @@ function probs = to_probs(coords)
     for idx = 3:n_node
         if g2s_is_avail(coords(1,:), coords(idx,:))
             p = g2s_calculate_prob(coords(1), coords(idx));
-            probs(1, idx) = log(p);
-            probs(idx, 1) = log(p);
+            probs(1, idx) = p;
+            probs(idx, 1) = p;
         else
             probs(1, idx) = Inf;
             probs(idx, 1) = Inf;
@@ -118,8 +118,8 @@ function probs = to_probs(coords)
 
         if g2s_is_avail(coords(2,:), coords(idx,:))
             p = g2s_calculate_prob(coords(2,:), coords(idx,:));
-            probs(2, idx) = log(p);
-            probs(idx, 2) = log(p);
+            probs(2, idx) = p;
+            probs(idx, 2) = p;
         else
             probs(2, idx) = Inf;
             probs(idx, 2) = Inf;
@@ -132,8 +132,8 @@ function probs = to_probs(coords)
             end
             if s2s_is_avail(coords(idx,:), coords(jdx,:))
                 p = s2s_calculate_prob(coords(idx,:), coords(jdx,:));
-                probs(jdx, idx) = log(p);
-                probs(idx, jdx) = log(p);
+                probs(jdx, idx) = p;
+                probs(idx, jdx) = p;
             else
                 probs(jdx, idx) = Inf;
                 probs(idx, jdx) = Inf;
@@ -176,12 +176,18 @@ function avail = s2s_is_avail(sat1_coord, sat2_coord)
     end
 end
 
-function p = g2s_calculate_prob(gs_coord, sat_coord)
-    p = rand;
+function pl_los = g2s_calculate_prob(gs_coord, sat_coord)
+    
+
+    d = norm(gs_coord - sat_coord);
+    freq = 30;
+    pl_los = 20*log10(d) + 20*log10(freq) + 20*log10((4*pi)/(3*(10^8)));
 end
 
-function p = s2s_calculate_prob(sat_coord1, sat_coord2)
-    p = rand;
+function pl_los = s2s_calculate_prob(sat_coord1, sat_coord2)
+    d = norm(sat_coord1 - sat_coord2);
+    freq = 30;
+    pl_los = 28 + 22*log10(d) + 20*log10(freq);
 end
 
 % props = properties(sat(i));

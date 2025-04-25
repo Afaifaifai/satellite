@@ -1,158 +1,161 @@
-function bestPath = mcts2(logP, startNode, endNode, iterations)
-    % mcts_logprob 使用 MCTS 最大化起點到終點的機率乘積(以 log-p 加總形式)，
-    % 禁止重複節點，直到到達終點或無路可走才停止。
-    % 輸入:
-    %   logP       - NxN 矩陣，logP(i,j) 為節點 i -> j 的 log(成功機率)，無連通為 Inf
-    %   startNode  - 起始節點編號
-    %   endNode    - 終點節點編號
-    %   iterations - MCTS 模擬次數
-    % 輸出:
-    %   bestPath   - 最佳路徑節點編號序列
+function bestPath = mcts2(lambdaMat, startNode, endNode, iterations)
+    %-----------------------------------------------------------------
+    % MCTS (Poisson‑edge) with percentile ribbon & data logging
+    % lambdaMat(i,j) = Poisson λ of edge i→j ;  Inf  = no link
+    %-----------------------------------------------------------------
     
-    % 直接跳到終點的小機率
-    p_direct    = 0.01;
+    p_direct  = 0.01;              % chance to jump straight to end
+    c         = sqrt(2);           % UCT exploration coefficient
+    NEG_INF   = -1e12;             % penalty for dead end (finite)
     
-    % 初始化樹結構 (struct array)
-    node.state    = startNode;
-    node.path     = startNode;
-    node.visits   = 0;
-    node.totalLog = 0;
-    node.parent   = 0;
-    tree(1)       = node;
-    rootIdx       = 1;
+    %%--- root node struct ------------------------------------------
+    node.state  = startNode;
+    node.path   = startNode;
+    node.depth  = 0;               % hop index (root =0)
+    node.visits = 0;
+    node.totalLg= 0;
+    node.parent = 0;
+    node.isFull = false;
     
-    bestLog  = -Inf;
-    bestPath = [];
+    tree(1) = node;  rootIdx = 1;
     
-    % UCT 探索係數
-    c = sqrt(2);
+    bestLg   = NEG_INF;  bestPath = [];
     
-    for iter = 1:iterations
-        fprintf('Iteration %d\n', iter);
-
-        %% 1. Selection
-        currentIdx = rootIdx;
+    %%--- logging vectors -------------------------------------------
+    log_record  = NEG_INF*ones(1,iterations);   % roll‑out logP
+    prob_record = zeros(1,iterations);          % roll‑out product prob
+    step_record = zeros(1,iterations);          % roll‑out steps
+    best_record = NEG_INF*ones(1,iterations);   % best log so far
+    size_record = zeros(1,iterations);          % tree size
+    
+    %%================== MAIN MCTS LOOP =============================
+    for it = 1:iterations
+        %% 1‑Selection
+        curIdx = rootIdx;
         while true
-            curr = tree(currentIdx);
-            % disp(currentIdx);
-            children = find([tree.parent]==currentIdx);
-            % if (numel(children) >= 1)
-            %     fprintf("  currIdx=%d, curr.state=%d, nc=%d %d\n", currentIdx, curr.state, numel(children), children(1));
-            % end
-            if curr.state==endNode || isempty(children)
-                break;
+            cur = tree(curIdx);
+            kids = find([tree.parent]==curIdx & ~[tree.isFull]);
+            if cur.state==endNode || isempty(kids), break; end
+            Np = cur.visits + 1; bestVal = -Inf; bestKid = kids(1);
+            for k = kids
+                ch = tree(k);
+                if ch.visits==0, u = Inf;
+                else, avg = ch.totalLg/ch.visits; u = avg + c*sqrt(log(Np)/ch.visits); end
+                if u>bestVal, bestVal=u; bestKid=k; end
             end
-            Np = curr.visits;
-            bestVal = -Inf;
-            for idx = children
-                child = tree(idx);
-                if child.visits == 0
-                    uctVal = Inf;
-                else
-                    avgLog = child.totalLog / child.visits;
-                    uctVal = avgLog + c * sqrt(log(Np + 1)/child.visits);
-                end
-                if uctVal > bestVal
-                    bestVal    = uctVal;
-                    currentIdx = idx;
-                end
-            end
-            % disp(currentIdx);
+            curIdx = bestKid;
         end
-        disp('select');
-        %% 2. Expansion
-        curr = tree(currentIdx);
-        if curr.state~=endNode
-            neigh = find(~isinf(logP(curr.state,:)));
-            
-            % disp(numel(neigh));
-            avail = setdiff(neigh, curr.path);
-            % disp(numel(avail));
-            if ~isempty(avail)
-                nextState = avail(randi(numel(avail)));
-                newNode.state    = nextState;
-                newNode.path     = [curr.path, nextState];
-                newNode.visits   = 0;
-                newNode.totalLog = 0;
-                newNode.parent   = currentIdx;
-                tree(end+1)      = newNode;
-                newIdx           = length(tree);
+    
+        %% 2‑Expansion
+        cur = tree(curIdx);
+        if cur.state~=endNode
+            neigh = find(~isinf(lambdaMat(cur.state,:)));
+            avail = setdiff(neigh, cur.path);
+            if isempty(avail)
+                tree(curIdx).isFull = true; newIdx = curIdx;
             else
-                newIdx = currentIdx;
+                nxt = avail(randi(numel(avail)));
+                new.state=nxt; new.path=[cur.path,nxt];
+                new.depth=cur.depth+1; new.visits=0; new.totalLg=0;
+                new.parent=curIdx; new.isFull=false;
+                tree(end+1)=new; newIdx=numel(tree);
             end
         else
-            newIdx = currentIdx;
+            newIdx = curIdx;
         end
-        % disp(tree);
     
-        %% 3. Simulation (roll-out)
-        sim    = tree(newIdx);
-        simLog = 0;
-        % disp(sim.state);
-
+        %% 3‑Simulation
+        sim.state  = tree(newIdx).state;
+        sim.path   = tree(newIdx).path;
+        sim.depth  = tree(newIdx).depth;
+        lgSum      = 0;
         while sim.state~=endNode
-            % 嘗試直接跳到終點
-            if rand() < p_direct && ~isinf(logP(sim.state,endNode))
-                simLog = simLog + logP(endNode, sim.state);
-                sim.state = endNode;
-                sim.path(end+1) = endNode;
-                break;
-            end
-            % 一般鄰居加權抽樣
-            neigh = find(~isinf(logP(sim.state,:)));
-            % neigh = find(~isinf(logP(curr.state,:)));
-            % disp(numel(neigh));
+            % (a) direct jump
+            if rand<p_direct && ~isinf(lambdaMat(sim.state,endNode))
+                lgSum = lgSum + log(p_direct);
+                sim.state=endNode; sim.depth=sim.depth+1; sim.path(end+1)=endNode; break; end
+            % (b) normal move
+            neigh = find(~isinf(lambdaMat(sim.state,:)));
             avail = setdiff(neigh, sim.path);
-            % disp(numel(avail));
-            % disp(numel(avail));
-            if isempty(avail)
-                simLog = -1e12;
-                break;
-            end
-            % 計算線性機率權重
-            pvec = exp(logP(sim.state, avail)); % 反指數化
-            pvec = pvec / sum(pvec);
-            cum = cumsum(pvec);
-            sel = find(cum>=rand(),1);
-            j   = avail(sel);
-            % 累加 log-p
-            simLog    = simLog + logP(sim.state, j);
-            sim.state = j;
-            sim.path(end+1) = j;
+            if isempty(avail), lgSum = NEG_INF; break; end
+            w = lambdaMat(sim.state, avail);  w(isinf(w)) = 0;
+            if all(w==0), w = ones(size(w)); end
+            p = w / sum(w);
+            j = avail(find(cumsum(p) >= rand, 1));
+            t  = sim.depth + 1;    lam = lambdaMat(sim.state,j);
+            lg = t*log(lam) - lam - gammaln(t+1);   % Poisson log‑pmf (k=1)
+            lgSum = lgSum + lg;
+            sim.state = j; sim.depth = t; sim.path(end+1) = j;
         end
     
-        %% 4. Backpropagation
+        %% 4‑Backpropagation
         idx = newIdx;
         while idx~=0
             tree(idx).visits   = tree(idx).visits + 1;
-            tree(idx).totalLog = tree(idx).totalLog + simLog;
+            tree(idx).totalLg  = tree(idx).totalLg + lgSum;
             idx = tree(idx).parent;
         end
     
-        % 更新最佳路徑
-        if sim.state==endNode
-            avgLog = tree(newIdx).totalLog / tree(newIdx).visits;
-            if avgLog > bestLog
-                bestLog  = avgLog;
-                bestPath = sim.path;
-            end
+        %% 5‑Update best
+        if sim.state==endNode && lgSum>bestLg, bestLg = lgSum; bestPath = sim.path; end
+    
+        %% 6‑Logging
+        log_record(it)  = lgSum;
+        prob_record(it) = exp(lgSum);
+        step_record(it) = numel(sim.path)-1;
+        best_record(it) = bestLg;
+        size_record(it) = numel(tree);
+    end
+    
+    %% ========= POST‑PROCESS & SAVE ============
+    fprintf('\n最佳路徑: '); disp(bestPath);
+    fprintf('log(乘積機率) = %.4g\n', bestLg);
+    
+    pct = [10 25 50 75 90];
+    P   = zeros(numel(pct), iterations);
+    for k = 1:iterations
+        tmp = log_record(1:k);
+        tmp(~isfinite(tmp)) = NEG_INF;      % 轉 finite
+        if all(tmp==NEG_INF)
+            P(:,k) = NEG_INF;
+        else
+            P(:,k) = prctile(tmp, pct)';
         end
     end
+    x = 1:iterations;
     
-    % 顯示結果
-    fprintf('Best path: ');
-    disp(bestPath);
+    save('mcts2_poisson.mat','lambdaMat','bestPath','bestLg', ...
+         'log_record','prob_record','step_record','best_record', ...
+         'size_record','P','pct');
+    
+%% -------- percentile ribbon plot · Steps ---------
+    fig = figure('Name','MCTS Progress – Steps','Color','w'); hold on;
 
-    log_sum = 0;
-    front = 1;
-    for i = 2:numel(bestPath)
-        log_sum = log_sum + logP(front, bestPath(i));
-        front = bestPath(i);
+    pct  = [10 25 50 75 90];              % 百分位
+    Pstp = NaN(numel(pct), iterations);   % 儲存分位數
+
+    for k = 1:iterations
+        tmp = step_record(1:k);
+        valid = tmp(isfinite(tmp));       % 只保留有限實數
+        if ~isempty(valid)
+            Pstp(:,k) = prctile(valid, pct)';   % 10/25/…/90 %
+        end
     end
-    disp(10^bestLog);
-    disp(logP(2,130));
+
+    % 左軸：步數帶狀
+    fill([x fliplr(x)], [Pstp(1,:) fliplr(Pstp(5,:))], ...
+        [0.85 1 0.85], 'EdgeColor','none');          % 10–90 %
+    fill([x fliplr(x)], [Pstp(2,:) fliplr(Pstp(4,:))], ...
+        [0.55 0.9 0.55], 'EdgeColor','none');        % 25–75 %
+    % plot(x, Pstp(3,:), 'k','LineWidth',1.3);          % Median
+    % plot(x, step_record, '--g','LineWidth',1.2);      % 每回合實際步數
+
+    legend({'10–90%','25–75%','Median','Steps'}, ...
+        'Location','northwest');
+    xlabel('Iteration');
+    ylabel('Steps');
+    grid on;
+
+    saveas(fig, 'mcts2_steps_progress.png');
     end
-    
-    
-    
     
