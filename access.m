@@ -23,6 +23,18 @@ S = 11;                         % 每面衛星數
 f = 2;                         % 相位因子
 total_sat = P * S;              % 總衛星數
 
+lat1 = 23.45;
+lon1 = -46.67;
+lat2 = -23.45;
+lon2 = 134.33;
+bs_alt1 = 0;
+bs_alt2 = 0;
+bs_name1 = 'BS1';
+bs_name2 = 'BS2';
+
+
+
+
 sc = satelliteScenario(start_time, stop_time, sample_time, 'AutoSimulate', false);
 restart(sc);
 
