@@ -45,6 +45,8 @@ disp(length(sats));
 gs1 = groundStation(sc, lat1, lon1, 'Name', bs_name1);
 gs2 = groundStation(sc, lat2, lon2, 'Name', bs_name2);
 
+uavs = walkerDelta(sc, earth_radius + 1e3, inclination_deg, 132, 12, 2, Name="UAV_Network");
+
 epoch  = datetime(start_time);
 
 % for i = 2:numel(sats)
@@ -57,10 +59,10 @@ endTime = sc.SimulationTime + days(1);
 disp(sc.SimulationTime);
 
 
-accesses = to_accesses(sats, gs1, gs2);
+accesses = to_accesses(gs1, gs2, sats, uavs);
 idx = 1;
 while sc.SimulationTime < endTime
-    coords = to_coords(sats, gs1, gs2, sc.SimulationTime);
+    coords = to_coords(gs1, gs2, sats, uavs, sc.SimulationTime);
     access_states = to_access_states(accesses, sc.SimulationTime);
     distances = coords2distances(coords);
 
@@ -74,7 +76,7 @@ while sc.SimulationTime < endTime
     advance(sc);   % 推進模擬時間
 end
 
-% play(sc)
+play(sc)
 
 % sat1 = sats(1);
 % nowTime    = datetime('now');              % 取得目前系統時間
@@ -86,60 +88,101 @@ end
 % end
 
 
-function coords = to_coords(sats, gs1, gs2, time)
-    % epoch = datetime('now');  % 確保使用 UTC 時間
+function coords = to_coords(gs1, gs2, sats, uavs, time)
+    % to_coords 將所有節點 (2 地面站 + sats + uavs) 在指定 time 的慣性座標取出
     function coord = transform_gcrf_coord(gs)
         wgs84 = referenceEllipsoid('wgs84');
         [x, y, z] = geodetic2ecef(wgs84, gs.Latitude, gs.Longitude, gs.Altitude);
         coord     = ecef2eci(datevec(time), [x, y, z]);  % 1×3
     end
-    
-    nSat   = numel(sats);
-    coords = zeros(nSat + 2, 3);        % 每列一顆：2 ground + nSat
 
-    coords(1,:) = transform_gcrf_coord(gs1);
-    coords(2,:) = transform_gcrf_coord(gs2);
+    nSat = numel(sats);
+    nUav = numel(uavs);
+    N    = 2 + nSat + nUav;
 
+    coords = zeros(N, 3);
+    % 地面站
+    coords(1, :) = transform_gcrf_coord(gs1);
+    coords(2, :) = transform_gcrf_coord(gs2);
+
+    % 衛星 sats
     for k = 1:nSat
-        % states → 3×1×1 → squeeze → 3×1 → 轉列向量
-        % time = datetime(2021,5,25,22,30,0);
-        % display(k);
-        p = states(sats(k), time, "CoordinateFrame","inertial");
-        coords(k+2, :) = p.';            % 寫進第 k+2 列
+        p = states(sats(k), time, "CoordinateFrame", "inertial");
+        coords(2 + k, :) = p.';  % 第 3..(2+nSat)
     end
 
-    disp("Finishing transforming code.");    
+    % 無人機 uavs（假設也是 satellite 物件）
+    for k = 1:nUav
+        p = states(uavs(k), time, "CoordinateFrame", "inertial");
+        coords(2 + nSat + k, :) = p.';  % 第 (3+nSat)..(2+nSat+nUav)
+    end
+
+    disp("Finishing transforming coordinates.");
 end
 
-function accesses = to_accesses(sats, gs1, gs2)
+
+
+function accesses = to_accesses(gs1, gs2, sats, uavs)
+    % to_accesses 預先建立所有節點 pairwise 的 Access 物件
     nSat = numel(sats);
-    N    = nSat + 2;            % 總節點數
+    nUav = numel(uavs);
+    N    = 2 + nSat + nUav;  % 總節點數目
 
-    % --- 2. 先建立所有 pairwise Access 物件（必須在模擬開始前） ------------
     accesses = cell(N, N);
-    % 節點編號：1=gs1, 2=gs2, 3..N = sats(1..nSat)
 
-    % gs1 ↔ gs2
+    % 1↔2: 地面站互連
     accesses{1,2} = access(gs1, gs2);
     accesses{2,1} = accesses{1,2};
-    % gs1 & gs2 ↔ sats
+
+    % 地面站 ↔ sats
     for k = 1:nSat
-        idx = k + 2;
-        accesses{1, idx} = access(gs1,   sats(k));
+        idx = 2 + k;
+        accesses{1, idx} = access(gs1,    sats(k));
         accesses{idx, 1} = accesses{1, idx};
-        accesses{2, idx} = access(gs2,   sats(k));
+        accesses{2, idx} = access(gs2,    sats(k));
+        accesses{idx, 2} = accesses{2, idx};
+    end
+
+    % 地面站 ↔ uavs
+    for k = 1:nUav
+        idx = 2 + nSat + k;
+        accesses{1, idx} = access(gs1,    uavs(k));
+        accesses{idx, 1} = accesses{1, idx};
+        accesses{2, idx} = access(gs2,    uavs(k));
         accesses{idx, 2} = accesses{2, idx};
     end
 
     % sats ↔ sats
     for i = 1:nSat
         for j = i+1:nSat
-            idx_i = i + 2;
-            idx_j = j + 2;
-            accesses{idx_i, idx_j} = access(sats(i), sats(j));
-            accesses{idx_j, idx_i} = accesses{idx_i, idx_j};
+            ii = 2 + i;
+            jj = 2 + j;
+            accesses{ii, jj} = access(sats(i), sats(j));
+            accesses{jj, ii} = accesses{ii, jj};
         end
     end
+
+    % uavs ↔ uavs
+    for i = 1:nUav
+        for j = i+1:nUav
+            ii = 2 + nSat + i;
+            jj = 2 + nSat + j;
+            accesses{ii, jj} = access(uavs(i), uavs(j));
+            accesses{jj, ii} = accesses{ii, jj};
+        end
+    end
+
+    % sats ↔ uavs
+    for i = 1:nSat
+        for j = 1:nUav
+            ii = 2 + i;
+            jj = 2 + nSat + j;
+            accesses{ii, jj} = access(sats(i), uavs(j));
+            accesses{jj, ii} = accesses{ii, jj};
+        end
+    end
+
+    disp("All Access objects created.");
 end
 
 function access_states = to_access_states(accesses, time)
