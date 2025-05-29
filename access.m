@@ -71,7 +71,7 @@ while sc.SimulationTime < endTime
     writematrix(access_states, sprintf('./data/iridium_access_states_%03d.csv', idx));
     writematrix(distances,     sprintf('./data/iridium_distances_%03d.csv',     idx));
 
-    disp(idx);
+    disp(sprints('%d %d %d %d', idx, length(coords), length(access_state), length(distances)));
     idx = idx + 1;
     advance(sc);   % 推進模擬時間
 end
@@ -111,7 +111,7 @@ function coords = to_coords(gs1, gs2, sats, uavs, time)
         coords(2 + k, :) = p.';  % 第 3..(2+nSat)
     end
 
-    % 無人機 uavs（假設也是 satellite 物件）
+    % 無人機 uavs（也是 satellite 物件）
     for k = 1:nUav
         p = states(uavs(k), time, "CoordinateFrame", "inertial");
         coords(2 + nSat + k, :) = p.';  % 第 (3+nSat)..(2+nSat+nUav)
