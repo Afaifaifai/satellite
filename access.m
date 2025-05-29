@@ -135,6 +135,7 @@ function accesses = to_accesses(gs1, gs2, sats, uavs)
     accesses{2,1} = accesses{1,2};
 
     % 地面站 ↔ sats
+    disp("地面站 ↔ sats");
     for k = 1:nSat
         idx = 2 + k;
         accesses{1, idx} = access(gs1,    sats(k));
@@ -143,6 +144,7 @@ function accesses = to_accesses(gs1, gs2, sats, uavs)
         accesses{idx, 2} = accesses{2, idx};
     end
 
+    disp("地面站 ↔ uavs");
     % 地面站 ↔ uavs
     for k = 1:nUav
         idx = 2 + nSat + k;
@@ -152,6 +154,7 @@ function accesses = to_accesses(gs1, gs2, sats, uavs)
         accesses{idx, 2} = accesses{2, idx};
     end
 
+    disp("sats ↔ sats");
     % sats ↔ sats
     for i = 1:nSat
         for j = i+1:nSat
@@ -162,6 +165,7 @@ function accesses = to_accesses(gs1, gs2, sats, uavs)
         end
     end
 
+    disp("uavs ↔ uavs");
     % uavs ↔ uavs
     for i = 1:nUav
         for j = i+1:nUav
@@ -172,6 +176,7 @@ function accesses = to_accesses(gs1, gs2, sats, uavs)
         end
     end
 
+    disp("sats ↔ uavs");
     % sats ↔ uavs
     for i = 1:nSat
         for j = 1:nUav
