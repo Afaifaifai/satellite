@@ -180,7 +180,7 @@ function pl_los = g2s_calculate_prob(gs_coord, sat_coord)
     
 
     d = norm(gs_coord - sat_coord);
-    freq = 70;
+    freq =   70;
     pl_los = 20*log10(d) + 20*log10(freq) + 20*log10((4*pi)/(3*(10^8)));
 end
 

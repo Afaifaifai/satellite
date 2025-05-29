@@ -11,7 +11,9 @@ inclination_rad = deg2rad(inclination_deg); % 傾角 (弧度)
 omega = 0;                                  % 近地點幅角 (弧度)
 omega_deg = rad2deg(omega);                 % 近地點幅角轉換為角度
 
-start_time = datetime("yesterday", "TimeZone", "local");
+% start_time = datetime("yesterday", "TimeZone", "local");
+start_time = datetime(2025, 5, 29, 17, 27, 0, 'TimeZone', 'local');
+
 stop_time = start_time + days(1);
 sample_time = 60 * 60 * 2; % seconds
 
@@ -42,10 +44,12 @@ endTime = sc.SimulationTime + days(1);
 % end_Time = stop_time;
 disp(sc.SimulationTime);
 
+
+accesses = to_accesses(sats, gs1, gs2);
 idx = 1;
 while sc.SimulationTime < endTime
     coords = to_coords(sats, gs1, gs2, sc.SimulationTime);
-    access_states = to_access_states(sats, gs1, gs2, sc.SimulationTime);
+    access_states = to_access_states(accesses, sc.SimulationTime);
     distances = coords2distances(coords);
 
     % 寫出 CSV 檔
@@ -95,44 +99,48 @@ function coords = to_coords(sats, gs1, gs2, time)
     disp("Finishing transforming code.");    
 end
 
+function accesses = to_accesses(sats, gs1, gs2)
+    nSat = numel(sats);
+    N    = nSat + 2;            % 總節點數
 
-function access_states = to_access_states(sats, gs1, gs2, time)
-    % sats: 1×n 衛星陣列
-    % gs1, gs2: 地面站物件
-    % time: datetime，要查詢的時間點
+    % --- 2. 先建立所有 pairwise Access 物件（必須在模擬開始前） ------------
+    accesses = cell(N, N);
+    % 節點編號：1=gs1, 2=gs2, 3..N = sats(1..nSat)
 
-    n = numel(sats);
-    N = n + 2;
-    access_states = false(N, N);  % 初始化 N×N 的 logical 矩陣
-
-    % 1↔2 (gs1 ↔ gs2)
-    ac = access(gs1, gs2);
-    access_states(1,2) = accessStatus(ac, time);
-    access_states(2,1) = access_states(1,2);
-
-    % 1↔(3:N) gs1 ↔ sats, 2↔(3:N) gs2 ↔ sats
-    for i = 1:n
-        idx = i + 2;
-        % gs1 ↔ sats(i)
-        ac = access(gs1, sats(i));
-        access_states(1, idx) = accessStatus(ac, time);
-        access_states(idx, 1) = access_states(1, idx);
-        % gs2 ↔ sats(i)
-        ac = access(gs2, sats(i));
-        access_states(2, idx) = accessStatus(ac, time);
-        access_states(idx, 2) = access_states(2, idx);
+    % gs1 ↔ gs2
+    accesses{1,2} = access(gs1, gs2);
+    accesses{2,1} = accesses{1,2};
+    % gs1 & gs2 ↔ sats
+    for k = 1:nSat
+        idx = k + 2;
+        accesses{1, idx} = access(gs1,   sats(k));
+        accesses{idx, 1} = accesses{1, idx};
+        accesses{2, idx} = access(gs2,   sats(k));
+        accesses{idx, 2} = accesses{2, idx};
     end
 
     % sats ↔ sats
-    for i = 1:n
-        for j = 1:n
-            if i ~= j
-                ac = access(sats(i), sats(j));
-                access_states(i+2, j+2) = accessStatus(ac, time);
-            end
+    for i = 1:nSat
+        for j = i+1:nSat
+            idx_i = i + 2;
+            idx_j = j + 2;
+            accesses{idx_i, idx_j} = access(sats(i), sats(j));
+            accesses{idx_j, idx_i} = accesses{idx_i, idx_j};
         end
     end
+end
 
+function access_states = to_access_states(accesses, time)
+    N = length(accesses);
+    access_states = false(N, N);  % 初始化 N×N 的 logical 矩陣
+
+    for i = 1:N
+        for j = i+1:N
+            s = accessStatus(accesses{i,j}, time);
+            access_states(i,j) = s;
+            access_states(j,i) = s;
+        end
+    end
     % 強制對角線為 false
     access_states(1:N+1:end) = false;
 end
