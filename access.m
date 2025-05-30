@@ -13,6 +13,7 @@ omega_deg = rad2deg(omega);                 % 近地點幅角轉換為角度
 
 % start_time = datetime("yesterday", "TimeZone", "local");
 start_time = datetime(2025, 5, 29, 17, 27, 0, 'TimeZone', 'local');
+% start_time = datetime(2025, 5, 29, 19, 27, 0, 'TimeZone', 'local');
 
 stop_time = start_time + days(1);
 sample_time = 60 * 60 * 2; % seconds
@@ -55,28 +56,123 @@ epoch  = datetime(start_time);
 
 % endTime = sc.SimulationTime + hours(0.1);  % 模擬 1 小時後的時間
 endTime = sc.SimulationTime + days(1);
+% endTime = sc.SimulationTime + hours(22);
 % end_Time = stop_time;
 disp(sc.SimulationTime);
 
 
-accesses = to_accesses(gs1, gs2, sats, uavs);
-idx = 1;
-while sc.SimulationTime < endTime
-    coords = to_coords(gs1, gs2, sats, uavs, sc.SimulationTime);
-    access_states = to_access_states(accesses, sc.SimulationTime);
-    distances = coords2distances(coords);
+%% Test
+% === 0. 前置參數與節點清單 ============================================
+nodes = [{gs1}; {gs2}; num2cell(sats(:)); num2cell(uavs(:))];   % 1…N
+N       = numel(nodes);             % 節點總數
+pairs   = nchoosek(1:N, 2);         % 所有 i<j 配對  M×2
+M       = size(pairs, 1);
+batchSz = ceil(M/4);                % 每批 ≈ M/4
 
-    % 寫出 CSV 檔
-    writematrix(coords,        sprintf('./data/iridium_coords_%03d.csv',        idx));
-    writematrix(access_states, sprintf('./data/iridium_access_states_%03d.csv', idx));
-    writematrix(distances,     sprintf('./data/iridium_distances_%03d.csv',     idx));
+% 一天 24h，2h 一步 → 13 個時間點 (0,2,4,…,24)
+tSteps  = floor(hours(endTime - sc.StartTime)/2) + 1;
 
-    disp(sprints('%d %d %d %d', idx, length(coords), length(access_state), length(distances)));
-    idx = idx + 1;
-    advance(sc);   % 推進模擬時間
+% 預分配結果陣列（一次填滿、最後再存檔）
+accessStatusAll = false(N, N, tSteps);
+coordsAll       = zeros(N, 3, tSteps);
+distAll         = zeros(N, N, tSteps);
+
+% === 1. 把所有配對切成 4 份 ===========================================
+parts = cell(4,1);
+for p = 1:4
+    sIdx = (p-1)*batchSz + 1;
+    eIdx = min(p*batchSz, M);
+    parts{p} = pairs(sIdx:eIdx, :);      % 這批要處理的 (i,j)
 end
 
-play(sc)
+% === 2. 4 輪迴圈：每輪只做 ¼ 的 access 物件 ==========================
+for part = 1:4
+    fprintf("Part %d", part);
+
+    batchPairs = parts{part};           % B×2
+    B = size(batchPairs,1);
+    
+    % -- 2-1  重置場景到 NotStarted，時間歸零 ---------------------------
+    restart(sc);                        % sc.SimulationTime ← sc.StartTime
+    
+    % -- 2-2  建立本輪需要的 access 物件 -------------------------------
+    acBatch = cell(B,1);
+    for b = 1:B
+        i = batchPairs(b,1);
+        j = batchPairs(b,2);
+        acBatch{b} = access(nodes{i}, nodes{j});       % 只建這 B 條
+    end
+    
+    % -- 2-3  while 迴圈：走完整天、2h 一步 ----------------------------
+    step = 1;                           % 時間點索引 1…tSteps
+    while sc.SimulationTime <= endTime
+        t = sc.SimulationTime;
+        
+        % 2-3-1（可選）只在最後一輪存座標與距離
+        if part == 4
+            coordsAll(:,:,step) = to_coords(gs1, gs2, sats, uavs, t);
+            distAll(:,:,step)   = coords2distances(coordsAll(:,:,step));
+        end
+        
+        %=== 這段改用 parfor =================================
+        sVec = false(B,1);        % 預分配
+        parfor b = 1:B
+            sVec(b) = accessStatus(acBatch{b}, t);
+        end
+        for b = 1:B
+            i = batchPairs(b,1);  j = batchPairs(b,2);
+            accessStatusAll(i,j,step) = sVec(b);
+            accessStatusAll(j,i,step) = sVec(b);
+        end
+        %=====================================================
+        
+        % 2-3-3  推進 2 小時（sc.SampleTime 事先已設為 2h）
+        fprintf("Part %d  Step %d / %d", part, step, tSteps);
+
+        advance(sc);
+        step = step + 1;
+        if step > tSteps, break; end
+    end
+end
+
+
+outDir = './data';
+if ~exist(outDir,'dir'), mkdir(outDir); end
+
+for idx = 1:tSteps
+    % 1) 取出單步資料
+    coordsStep   = coordsAll(:,:,idx);                 % N×3
+    accessStep   = double(accessStatusAll(:,:,idx));   % 轉成 0/1
+    distStep     = distAll(:,:,idx);                   % N×N
+
+    % 2) 寫成 CSV
+    writematrix(coordsStep, ...
+        sprintf('%s/iridium_coords_%03d.csv',        outDir, idx));
+    writematrix(accessStep, ...
+        sprintf('%s/iridium_access_states_%03d.csv', outDir, idx));
+    writematrix(distStep, ...
+        sprintf('%s/iridium_distances_%03d.csv',     outDir, idx));
+end
+%%
+
+% accesses = to_accesses(gs1, gs2, sats, uavs);
+% idx = 2;
+% while sc.SimulationTime < endTime
+%     coords = to_coords(gs1, gs2, sats, uavs, sc.SimulationTime);
+%     access_states = to_access_states(accesses, sc.SimulationTime);
+%     distances = coords2distances(coords);
+
+%     % 寫出 CSV 檔
+%     writematrix(coords,        sprintf('./data/iridium_coords_%03d.csv',        idx));
+%     writematrix(access_states, sprintf('./data/iridium_access_states_%03d.csv', idx));
+%     writematrix(distances,     sprintf('./data/iridium_distances_%03d.csv',     idx));
+
+%     disp(sprints('%d %d %d %d', idx, length(coords), length(access_states), length(distances)));
+%     idx = idx + 1;
+%     advance(sc);   % 推進模擬時間
+% end
+
+% play(sc)
 
 % sat1 = sats(1);
 % nowTime    = datetime('now');              % 取得目前系統時間
@@ -194,13 +290,17 @@ function access_states = to_access_states(accesses, time)
     N = length(accesses);
     access_states = false(N, N);  % 初始化 N×N 的 logical 矩陣
 
-    for i = 1:N
-        for j = i+1:N
-            s = accessStatus(accesses{i,j}, time);
-            access_states(i,j) = s;
-            access_states(j,i) = s;
+    parfor i = 1 : N
+        tmp = false(1, N);
+        % 只算 j>i，就能減少一半運算量
+        for j = i+1 : N
+            tmp(j) = accessStatus(accesses{i,j}, time);
         end
+        access_states(i, :) = tmp;
     end
+
+    % 鏡射上三角到下三角
+    access_states = access_states | access_states.';
     % 強制對角線為 false
     access_states(1:N+1:end) = false;
 end
