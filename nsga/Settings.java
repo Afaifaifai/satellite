@@ -11,6 +11,9 @@ public class Settings {
     String iridium_coords = "iridium_coords";
     String iridium_distances = "iridium_distances";
     String file_suffix = "csv";
+
+    // GA
+    int num_population = 100;
 }
 
 

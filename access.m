@@ -87,7 +87,7 @@ end
 
 % === 2. 4 輪迴圈：每輪只做 ¼ 的 access 物件 ==========================
 for part = 1:4
-    fprintf("Part %d", part);
+    fprintf("Part %d\n", part);
 
     batchPairs = parts{part};           % B×2
     B = size(batchPairs,1);
@@ -127,7 +127,7 @@ for part = 1:4
         %=====================================================
         
         % 2-3-3  推進 2 小時（sc.SampleTime 事先已設為 2h）
-        fprintf("Part %d  Step %d / %d", part, step, tSteps);
+        fprintf("Part %d  Step %d / %d\n", part, step, tSteps);
 
         advance(sc);
         step = step + 1;

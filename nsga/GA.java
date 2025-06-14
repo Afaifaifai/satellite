@@ -8,6 +8,15 @@ public class GA {
         this.access_states = access_states;
         this.coords = coords;
         this.distances = distances;
+
+        Chromosome[] population = new Chromosome[s.num_population];
+        for (int i = 0; i < s.num_population; i++)
+            population[i] = random_generate();
+
+        Arrays.sort(population, (o1, o2) -> Double.compare(o1.fitness, o2.fitness));
+        for (int i = 0; i < s.ga_iteration; i++) {
+            
+        }
     }
 
     public Chromosome random_generate() {
